@@ -808,13 +808,6 @@
 
             <div class="submit-section">
                 <button type="submit" class="submit-btn" id="submitBtn">Submit Survey</button>
-                <!-- 
-                    NOTE: Export button is kept for backward compatibility
-                    but now it only exports responses that were saved locally
-                    (if any exist from before switching to Google Sheets).
-                    Most users won't have any local data.
-                -->
-                <button type="button" class="export-btn" id="exportBtn" onclick="promptAdminPassword()">🔒 Admin: Export Local Data (CSV)</button>
             </div>
         </form>
 
@@ -844,17 +837,13 @@
         // ============================================
         // CONFIGURATION: Replace this URL with your Google Apps Script Web App URL
         // ============================================
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz-g1hpmC9njr0ebGs8TdHSqgnZiznYxVILqyL4DNgHFiBPH5_g8nUHt0vetgbsU70I/exec';
-        
-        // Admin password for exporting local data (kept from original)
-        const ADMIN_PASSWORD = "joudishere2004"; // CHANGE THIS!
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztJVQlsl5WCf36K7rojPTPiB0w-JC4LmFOf45NwKBG-uuD8y3sD482bNHdwZjxi5DHRg/exec';
         
         // ============================================
         // INITIALIZATION
         // ============================================
         
-        // Still using localStorage for backward compatibility and as backup
-        // New responses will be sent to Google Sheets instead
+        // Using localStorage as backup for failed submissions
         let responses = JSON.parse(localStorage.getItem('surveyResponses') || '[]');
         
         // Update stats on load
@@ -997,9 +986,9 @@
         async function sendToGoogleSheets(data) {
             try {
                 // Check if URL is configured
-               // if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbztJVQlsl5WCf36K7rojPTPiB0w-JC4LmFOf45NwKBG-uuD8y3sD482bNHdwZjxi5DHRg/exec') {
-                    //throw new Error('Google Sheets URL not configured. Please update GOOGLE_SCRIPT_URL in the code.');
-                
+                if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
+                    throw new Error('Google Sheets URL not configured. Please update GOOGLE_SCRIPT_URL in the code.');
+                }
                 
                 // Send POST request to Google Apps Script
                 const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -1029,71 +1018,14 @@
         }
 
         // ============================================
-        // STATS UPDATE (kept from original)
+        // STATS UPDATE
         // ============================================
         function updateStats() {
-            // Count only responses in localStorage (for backward compatibility)
-            // Note: This won't include responses saved directly to Google Sheets
-            // unless you implement a separate endpoint to fetch count from Sheets
+            // Count only responses in localStorage (backup storage)
             document.getElementById('totalResponses').textContent = responses.length;
             if (responses.length > 0) {
                 document.getElementById('stats').classList.add('show');
             }
-        }
-
-        // ============================================
-        // ADMIN EXPORT (kept from original - exports LOCAL data only)
-        // ============================================
-        function promptAdminPassword() {
-            const password = prompt('Enter admin password to export LOCAL responses:');
-            if (password === ADMIN_PASSWORD) {
-                exportLocalResponses();
-            } else if (password !== null) {
-                alert('Incorrect password. Access denied.');
-            }
-        }
-
-        function exportLocalResponses() {
-            // Only exports data stored in localStorage
-            // Does NOT export data from Google Sheets
-            if (responses.length === 0) {
-                alert('No local responses to export. All responses are now saved to Google Sheets.');
-                return;
-            }
-
-            // Create CSV content
-            let csv = 'Timestamp,Academic Year,Major,Built Projects Outside,Confidence Level,Biggest Challenges,Platform Features,Finding Teammates,Motivation to Finish,Project Sharing,Unfinished Project Needs,Failed To Submit\n';
-            
-            responses.forEach(r => {
-                const row = [
-                    r.timestamp,
-                    r.responses?.academicYear || r.academicYear || '',
-                    r.responses?.major || r.major || '',
-                    r.responses?.builtProjectsOutside || r.builtProjectsOutside || '',
-                    r.responses?.confidenceLevel || r.confidenceLevel || '',
-                    `"${r.responses?.biggestChallenges || r.biggestChallenges || ''}"`,
-                    `"${r.responses?.platformFeatures || r.platformFeatures || ''}"`,
-                    `"${r.responses?.findingTeammates || r.findingTeammates || ''}"`,
-                    `"${r.responses?.motivationToFinish || r.motivationToFinish || ''}"`,
-                    r.responses?.projectSharing || r.projectSharing || '',
-                    `"${r.responses?.unfinishedProjectNeeds || r.unfinishedProjectNeeds || ''}"`,
-                    r._failedToSubmit ? 'YES' : 'NO'
-                ];
-                csv += row.join(',') + '\n';
-            });
-
-            // Create download link
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `local-survey-backup-${new Date().toISOString().split('T')[0]}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            alert('Local backup exported. Note: This does not include responses saved directly to Google Sheets. Check your Google Sheet for complete data.');
         }
     </script>
 </body>
