@@ -23,6 +23,7 @@
             --accent-pink: #e879f9;
             --input-bg: #2a2135;
             --success: #86efac;
+            --error: #f87171;
         }
 
         body {
@@ -256,18 +257,23 @@
             transition: width 0.6s ease, height 0.6s ease;
         }
 
-        .submit-btn:hover {
+        .submit-btn:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 15px 40px rgba(232, 121, 249, 0.4);
         }
 
-        .submit-btn:hover::before {
+        .submit-btn:hover:not(:disabled)::before {
             width: 300px;
             height: 300px;
         }
 
-        .submit-btn:active {
+        .submit-btn:active:not(:disabled) {
             transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .export-btn {
@@ -309,6 +315,33 @@
             color: var(--success);
             font-size: 1.5rem;
             margin-bottom: 8px;
+        }
+
+        /* NEW: Error message styling (same as success but red) */
+        .error-message {
+            background: var(--dark-card);
+            border: 2px solid var(--error);
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            margin-top: 24px;
+            animation: fadeInScale 0.5s ease-out;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .error-message h3 {
+            font-family: 'Sora', sans-serif;
+            color: var(--error);
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .error-message p {
+            color: var(--text-secondary);
         }
 
         .stats {
@@ -774,16 +807,30 @@
             </div>
 
             <div class="submit-section">
-                <button type="submit" class="submit-btn">Submit Survey</button>
-                <button type="button" class="export-btn" id="exportBtn" onclick="promptAdminPassword()">🔒 Admin: Export Responses</button>
+                <button type="submit" class="submit-btn" id="submitBtn">Submit Survey</button>
+                <!-- 
+                    NOTE: Export button is kept for backward compatibility
+                    but now it only exports responses that were saved locally
+                    (if any exist from before switching to Google Sheets).
+                    Most users won't have any local data.
+                -->
+                <button type="button" class="export-btn" id="exportBtn" onclick="promptAdminPassword()">🔒 Admin: Export Local Data (CSV)</button>
             </div>
         </form>
 
+        <!-- SUCCESS MESSAGE: Kept exactly the same -->
         <div class="success-message" id="successMessage">
             <h3>✨ Thank You!</h3>
             <p>Your response has been recorded successfully.</p>
         </div>
 
+        <!-- NEW: ERROR MESSAGE -->
+        <div class="error-message" id="errorMessage">
+            <h3>⚠️ Oops!</h3>
+            <p id="errorText">Something went wrong. Please try again.</p>
+        </div>
+
+        <!-- Stats section kept for displaying response count -->
         <div class="stats" id="stats">
             <h3>📊 Response Statistics</h3>
             <div class="stat-item">
@@ -794,109 +841,259 @@
     </div>
 
     <script>
-        // Admin password - Change this to your secure password
-        const ADMIN_PASSWORD = "admin123"; // CHANGE THIS!
+        // ============================================
+        // CONFIGURATION: Replace this URL with your Google Apps Script Web App URL
+        // ============================================
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz-g1hpmC9njr0ebGs8TdHSqgnZiznYxVILqyL4DNgHFiBPH5_g8nUHt0vetgbsU70I/exec';
         
-        // Initialize responses array from localStorage
+        // Admin password for exporting local data (kept from original)
+        const ADMIN_PASSWORD = "joudishere2004"; // CHANGE THIS!
+        
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        
+        // Still using localStorage for backward compatibility and as backup
+        // New responses will be sent to Google Sheets instead
         let responses = JSON.parse(localStorage.getItem('surveyResponses') || '[]');
         
         // Update stats on load
         updateStats();
 
-        document.getElementById('surveyForm').addEventListener('submit', function(e) {
+        // ============================================
+        // FORM SUBMISSION - MAIN LOGIC
+        // ============================================
+        document.getElementById('surveyForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            // Collect form data
-            const formData = new FormData(e.target);
-            const response = {
-                timestamp: new Date().toISOString(),
-                academicYear: formData.get('q1'),
-                major: formData.get('q2'),
-                builtProjectsOutside: formData.get('q3'),
-                confidenceLevel: formData.get('q4'),
-                biggestChallenges: formData.getAll('q5'),
-                platformFeatures: formData.getAll('q6'),
-                findingTeammates: formData.getAll('q7'),
-                motivationToFinish: formData.getAll('q8'),
-                projectSharing: formData.get('q9'),
-                unfinishedProjectNeeds: formData.getAll('q10')
-            };
+            // Disable submit button to prevent double submission
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
             
-            // Save to localStorage
-            responses.push(response);
-            localStorage.setItem('surveyResponses', JSON.stringify(responses));
+            // Hide any previous messages
+            document.getElementById('successMessage').classList.remove('show');
+            document.getElementById('errorMessage').classList.remove('show');
             
-            // Show success message
-            document.getElementById('successMessage').classList.add('show');
-            document.getElementById('stats').classList.add('show');
-            
-            // Update stats
-            updateStats();
-            
-            // Reset form
-            e.target.reset();
-            
-            // Scroll to success message
-            document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Hide success message after 5 seconds
-            setTimeout(() => {
-                document.getElementById('successMessage').classList.remove('show');
-            }, 5000);
+            try {
+                // Collect form data
+                const formData = new FormData(e.target);
+                
+                // Build the response object in the exact format expected by Google Sheets
+                const response = {
+                    timestamp: new Date().toISOString(),
+                    responses: {
+                        academicYear: formData.get('q1'),
+                        major: formData.get('q2'),
+                        builtProjectsOutside: formData.get('q3'),
+                        confidenceLevel: formData.get('q4'),
+                        biggestChallenges: formData.getAll('q5').join('; '), // Join multiple checkboxes
+                        platformFeatures: formData.getAll('q6').join('; '),
+                        findingTeammates: formData.getAll('q7').join('; '),
+                        motivationToFinish: formData.getAll('q8').join('; '),
+                        projectSharing: formData.get('q9'),
+                        unfinishedProjectNeeds: formData.getAll('q10').join('; ')
+                    }
+                };
+                
+                // ============================================
+                // SEND TO GOOGLE SHEETS
+                // ============================================
+                const result = await sendToGoogleSheets(response);
+                
+                if (result.success) {
+                    // Success! Show success message (same animation as before)
+                    document.getElementById('successMessage').classList.add('show');
+                    
+                    // Also save locally as backup (optional, but recommended)
+                    responses.push(response);
+                    localStorage.setItem('surveyResponses', JSON.stringify(responses));
+                    
+                    // Update stats
+                    updateStats();
+                    
+                    // Reset form
+                    e.target.reset();
+                    
+                    // Scroll to success message
+                    document.getElementById('successMessage').scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                    
+                    // Hide success message after 5 seconds
+                    setTimeout(() => {
+                        document.getElementById('successMessage').classList.remove('show');
+                    }, 5000);
+                } else {
+                    // Failed to save to Google Sheets
+                    throw new Error(result.error || 'Failed to save response');
+                }
+                
+            } catch (error) {
+                // ============================================
+                // ERROR HANDLING
+                // ============================================
+                console.error('Error submitting form:', error);
+                
+                // Show user-friendly error message
+                const errorMessage = document.getElementById('errorMessage');
+                const errorText = document.getElementById('errorText');
+                
+                if (error.message.includes('network') || error.message.includes('fetch')) {
+                    errorText.textContent = 'Network error. Please check your connection and try again.';
+                } else if (error.message.includes('CORS')) {
+                    errorText.textContent = 'Configuration error. Please contact the administrator.';
+                } else {
+                    errorText.textContent = 'Something went wrong. Your response was saved locally as backup. Please try again or contact support.';
+                }
+                
+                errorMessage.classList.add('show');
+                
+                // Optionally save to localStorage as backup even on failure
+                try {
+                    const formData = new FormData(e.target);
+                    const backupResponse = {
+                        timestamp: new Date().toISOString(),
+                        responses: {
+                            academicYear: formData.get('q1'),
+                            major: formData.get('q2'),
+                            builtProjectsOutside: formData.get('q3'),
+                            confidenceLevel: formData.get('q4'),
+                            biggestChallenges: formData.getAll('q5').join('; '),
+                            platformFeatures: formData.getAll('q6').join('; '),
+                            findingTeammates: formData.getAll('q7').join('; '),
+                            motivationToFinish: formData.getAll('q8').join('; '),
+                            projectSharing: formData.get('q9'),
+                            unfinishedProjectNeeds: formData.getAll('q10').join('; ')
+                        },
+                        _failedToSubmit: true // Flag this as a failed submission
+                    };
+                    responses.push(backupResponse);
+                    localStorage.setItem('surveyResponses', JSON.stringify(responses));
+                } catch (backupError) {
+                    console.error('Failed to save backup:', backupError);
+                }
+                
+                // Scroll to error message
+                errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Hide error message after 10 seconds
+                setTimeout(() => {
+                    errorMessage.classList.remove('show');
+                }, 10000);
+                
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
         });
 
+        // ============================================
+        // GOOGLE SHEETS API FUNCTION
+        // ============================================
+        async function sendToGoogleSheets(data) {
+            try {
+                // Check if URL is configured
+               // if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbztJVQlsl5WCf36K7rojPTPiB0w-JC4LmFOf45NwKBG-uuD8y3sD482bNHdwZjxi5DHRg/exec') {
+                    //throw new Error('Google Sheets URL not configured. Please update GOOGLE_SCRIPT_URL in the code.');
+                
+                
+                // Send POST request to Google Apps Script
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Important for Apps Script public endpoints
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                // Note: With no-cors mode, we can't read the response
+                // We assume success if no error was thrown
+                // Apps Script should return JSON like: { "success": true } or { "success": false, "error": "..." }
+                
+                // Since we can't read response with no-cors, we'll assume success
+                // The Apps Script will log any errors on its side
+                return { success: true };
+                
+            } catch (error) {
+                console.error('Failed to send to Google Sheets:', error);
+                return { 
+                    success: false, 
+                    error: error.message 
+                };
+            }
+        }
+
+        // ============================================
+        // STATS UPDATE (kept from original)
+        // ============================================
         function updateStats() {
+            // Count only responses in localStorage (for backward compatibility)
+            // Note: This won't include responses saved directly to Google Sheets
+            // unless you implement a separate endpoint to fetch count from Sheets
             document.getElementById('totalResponses').textContent = responses.length;
             if (responses.length > 0) {
                 document.getElementById('stats').classList.add('show');
             }
         }
 
+        // ============================================
+        // ADMIN EXPORT (kept from original - exports LOCAL data only)
+        // ============================================
         function promptAdminPassword() {
-            const password = prompt('Enter admin password to export responses:');
+            const password = prompt('Enter admin password to export LOCAL responses:');
             if (password === ADMIN_PASSWORD) {
-                exportResponses();
+                exportLocalResponses();
             } else if (password !== null) {
                 alert('Incorrect password. Access denied.');
             }
         }
 
-        function exportResponses() {
+        function exportLocalResponses() {
+            // Only exports data stored in localStorage
+            // Does NOT export data from Google Sheets
             if (responses.length === 0) {
-                alert('No responses to export yet!');
+                alert('No local responses to export. All responses are now saved to Google Sheets.');
                 return;
             }
 
             // Create CSV content
-            let csv = 'Timestamp,Academic Year,Major,Built Projects Outside,Confidence Level,Biggest Challenges,Platform Features,Finding Teammates,Motivation to Finish,Project Sharing,Unfinished Project Needs\n';
+            let csv = 'Timestamp,Academic Year,Major,Built Projects Outside,Confidence Level,Biggest Challenges,Platform Features,Finding Teammates,Motivation to Finish,Project Sharing,Unfinished Project Needs,Failed To Submit\n';
             
             responses.forEach(r => {
                 const row = [
                     r.timestamp,
-                    r.academicYear,
-                    r.major,
-                    r.builtProjectsOutside,
-                    r.confidenceLevel,
-                    `"${r.biggestChallenges.join('; ')}"`,
-                    `"${r.platformFeatures.join('; ')}"`,
-                    `"${r.findingTeammates.join('; ')}"`,
-                    `"${r.motivationToFinish.join('; ')}"`,
-                    r.projectSharing,
-                    `"${r.unfinishedProjectNeeds.join('; ')}"`
+                    r.responses?.academicYear || r.academicYear || '',
+                    r.responses?.major || r.major || '',
+                    r.responses?.builtProjectsOutside || r.builtProjectsOutside || '',
+                    r.responses?.confidenceLevel || r.confidenceLevel || '',
+                    `"${r.responses?.biggestChallenges || r.biggestChallenges || ''}"`,
+                    `"${r.responses?.platformFeatures || r.platformFeatures || ''}"`,
+                    `"${r.responses?.findingTeammates || r.findingTeammates || ''}"`,
+                    `"${r.responses?.motivationToFinish || r.motivationToFinish || ''}"`,
+                    r.responses?.projectSharing || r.projectSharing || '',
+                    `"${r.responses?.unfinishedProjectNeeds || r.unfinishedProjectNeeds || ''}"`,
+                    r._failedToSubmit ? 'YES' : 'NO'
                 ];
                 csv += row.join(',') + '\n';
             });
 
             // Create download link
-            const blob = new Blob([csv], { type: 'text/csv' });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `project-survey-responses-${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `local-survey-backup-${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
+            
+            alert('Local backup exported. Note: This does not include responses saved directly to Google Sheets. Check your Google Sheet for complete data.');
         }
     </script>
 </body>
