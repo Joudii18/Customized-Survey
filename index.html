@@ -480,32 +480,10 @@
                 <div class="question-label">
                     What is your major? <span class="required">*</span>
                 </div>
-                <div class="options-group">
-                    <div class="option">
-                        <input type="radio" id="q2_1" name="q2" value="Computer Science" required>
-                        <label for="q2_1">Computer Science</label>
-                    </div>
-                    <div class="option">
-                        <input type="radio" id="q2_2" name="q2" value="Software Engineering" required>
-                        <label for="q2_2">Software Engineering</label>
-                    </div>
-                    <div class="option">
-                        <input type="radio" id="q2_3" name="q2" value="Computer Engineering" required>
-                        <label for="q2_3">Computer Engineering</label>
-                    </div>
-                    <div class="option">
-                        <input type="radio" id="q2_4" name="q2" value="AI & Cybersecurity" required>
-                        <label for="q2_4">AI & Cybersecurity</label>
-                    </div>
-                    <div class="option">
-                        <input type="radio" id="q2_5" name="q2" value="Data Science & Engineering" required>
-                        <label for="q2_5">Data Science & Engineering</label>
-                    </div>
-                    <div class="option">
-                        <input type="radio" id="q2_6" name="q2" value="Other" required>
-                        <label for="q2_6">Other</label>
-                    </div>
+                <div class="question-description">
+                    Please use abbreviations (e.g., "SWE" for Software Engineering, "ISE" for Information Systems Engineering)
                 </div>
+                <input type="text" name="q2" required placeholder="Enter your major (e.g., SWE, ISE, CS)">
             </div>
 
             <!-- Question 3: Built Projects Outside Class -->
@@ -722,33 +700,36 @@
                 <div class="question-label">
                     Have you ever shared or showcased a project you worked on? <span class="required">*</span>
                 </div>
+                <div class="question-description">
+                    Select all that apply
+                </div>
                 <div class="options-group">
                     <div class="option">
-                        <input type="radio" id="q9_1" name="q9" value="Yes, on GitHub" required>
+                        <input type="checkbox" id="q9_1" name="q9" value="Yes, on GitHub">
                         <label for="q9_1">Yes, on GitHub</label>
                     </div>
                     <div class="option">
-                        <input type="radio" id="q9_2" name="q9" value="Yes, on LinkedIn" required>
+                        <input type="checkbox" id="q9_2" name="q9" value="Yes, on LinkedIn">
                         <label for="q9_2">Yes, on LinkedIn</label>
                     </div>
                     <div class="option">
-                        <input type="radio" id="q9_3" name="q9" value="Yes, in class/university presentations" required>
+                        <input type="checkbox" id="q9_3" name="q9" value="Yes, in class/university presentations">
                         <label for="q9_3">Yes, in class/university presentations</label>
                     </div>
                     <div class="option">
-                        <input type="radio" id="q9_4" name="q9" value="Yes, on personal portfolio/website" required>
+                        <input type="checkbox" id="q9_4" name="q9" value="Yes, on personal portfolio/website">
                         <label for="q9_4">Yes, on personal portfolio/website</label>
                     </div>
                     <div class="option">
-                        <input type="radio" id="q9_5" name="q9" value="Yes, on social media (Twitter/X, Instagram, etc.)" required>
+                        <input type="checkbox" id="q9_5" name="q9" value="Yes, on social media (Twitter/X, Instagram, etc.)">
                         <label for="q9_5">Yes, on social media (Twitter/X, Instagram, etc.)</label>
                     </div>
                     <div class="option">
-                        <input type="radio" id="q9_6" name="q9" value="Yes, in hackathons or competitions" required>
+                        <input type="checkbox" id="q9_6" name="q9" value="Yes, in hackathons or competitions">
                         <label for="q9_6">Yes, in hackathons or competitions</label>
                     </div>
                     <div class="option">
-                        <input type="radio" id="q9_7" name="q9" value="No, I haven't shared any projects" required>
+                        <input type="checkbox" id="q9_7" name="q9" value="No, I haven't shared any projects">
                         <label for="q9_7">No, I haven't shared any projects</label>
                     </div>
                 </div>
@@ -881,7 +862,7 @@
                         platformFeatures: formData.getAll('q6').join('; '),
                         findingTeammates: formData.getAll('q7').join('; '),
                         motivationToFinish: formData.getAll('q8').join('; '),
-                        projectSharing: formData.get('q9'),
+                        projectSharing: formData.getAll('q9').join('; '), // Changed to checkbox
                         unfinishedProjectNeeds: formData.getAll('q10').join('; ')
                     }
                 };
@@ -954,7 +935,7 @@
                             platformFeatures: formData.getAll('q6').join('; '),
                             findingTeammates: formData.getAll('q7').join('; '),
                             motivationToFinish: formData.getAll('q8').join('; '),
-                            projectSharing: formData.get('q9'),
+                            projectSharing: formData.getAll('q9').join('; '), // Changed to checkbox
                             unfinishedProjectNeeds: formData.getAll('q10').join('; ')
                         },
                         _failedToSubmit: true // Flag this as a failed submission
